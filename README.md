@@ -101,3 +101,12 @@ Prétraitement → Gradient morphologique → LPE ou seuillage → Reconstructio
 ---
 
 Si tu veux, je peux t’aider à coder une des approches ou t’écrire une partie de rapport critique pour expliquer les forces/faiblesses de tes choix. Tu veux commencer par quoi ?
+
+
+
+
+
+
+## Métriques additionelles
+
+-   Intersection over Union : IoU = (A inter B) / (A union B)

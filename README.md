@@ -101,3 +101,13 @@ Prétraitement → Gradient morphologique → LPE ou seuillage → Reconstructio
 ---
 
 Si tu veux, je peux t’aider à coder une des approches ou t’écrire une partie de rapport critique pour expliquer les forces/faiblesses de tes choix. Tu veux commencer par quoi ?
+
+# Idées prof
+## Normalisation de la métrique
+Comparaison du nombres de pixels entre la personne segmentée en premier plan et la personne segmentée en dernier plan donne importance différente si on compare que la différence des pixels entre la segmentation de référence et la segmentation calculée ! Par conséquent, il faut comparer les squelettes des deux images !
+Squelette et transformée en distance définis que pour des images binaires.
+Objectif: 
+- Transformer image en binaire
+- Faire squelette
+OU:
+- Segmenter l'image directement

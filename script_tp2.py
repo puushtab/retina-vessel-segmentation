@@ -9,9 +9,8 @@ import math
 from skimage import data, filters
 from matplotlib import pyplot as plt
 
-from segmentation_library import morphological_gradient_segmentation, external_gradient_segmentation
-from validation_tuning_library import evaluate, tune_hyperparameters
-
+from segmentation_library import *
+from validation_tuning_library import evaluate, tune_hyperparameters, save_results
 
 # Load the original grayscale image
 img = np.asarray(Image.open('./images_IOSTAR/star01_OSC.jpg').convert('L')).astype(np.uint8)
@@ -24,23 +23,25 @@ img_mask = np.ones(img.shape, dtype=bool)
 invalid_pixels = ((row - nrows/2)**2 + (col - ncols/2)**2 > (nrows/2)**2)
 img_mask[invalid_pixels] = False
 
-
 # Load the ground truth image as binary
 img_GT = np.asarray(Image.open('./images_IOSTAR/GT_01.png').convert('L')).astype(bool)
 # Ensure img_GT is binary (0s and 1s)
 img_GT = img_GT > 0  # Convert to boolean array
 
+# Fonction de segmentation
+segmentation_func = watershed_segmentation_with_markers
 
-# Tunning des hyperparamètres
-# Define parameter grid to explore
+# Updated parameter grid for tuning
 param_grid = {
-    'seuil': list(range(10, 120, 10)),        # threshold
-    'selem_radius': list(range(1, 6))         # structuring element radius
+    'min_distance': [10, 15, 20, 25],  # Adjusted range based on vessel spacing
+    'seuil': [20, 40, 60, 80, 100],    # Adjusted range for Frangi output
+    'scale_min': [1, 2, 3],            # Minimum vessel width scales
+    'scale_max': [8, 10, 12]           # Maximum vessel width scales
 }
 
 # Run hyperparameter tuning
 best_parameter, best_score, history = tune_hyperparameters(
-    segmentation_func=external_gradient_segmentation,
+    segmentation_func=segmentation_func,
     img=img,
     img_mask=img_mask,
     img_GT=img_GT,
@@ -48,12 +49,10 @@ best_parameter, best_score, history = tune_hyperparameters(
     verbose=False
 )
 
-
 print("Best parameters:", best_parameter, "with F1 score:", best_score)
 
-# Segment the image
-# img_out = morphological_gradient_segmentation(img, img_mask, 15)
-img_out = external_gradient_segmentation(img, img_mask, **best_parameter)
+# Segment the image with best parameters
+img_out = segmentation_func(img, img_mask, **best_parameter)
 
 # Evaluate segmentation
 ACCU, RECALL, img_out_skel, GT_skel = evaluate(img_out, img_GT)
@@ -72,9 +71,21 @@ plt.imshow(img_out_skel, cmap='gray')
 plt.title('Segmentation squelette')
 plt.subplot(235)
 plt.imshow(img_GT, cmap='gray')
-plt.title('Verite Terrain')
+plt.title('Vérité Terrain')
 plt.subplot(236)
 plt.imshow(GT_skel, cmap='gray')
-plt.title('Verite Terrain Squelette')
+plt.title('Vérité Terrain Squelette')
 plt.tight_layout()
 plt.show()
+
+save_results(
+    segmentation_func=segmentation_func,   # ta fonction de segmentation (pas une string)
+    results_dir='media/results',
+    img_path='./images_IOSTAR/star01_OSC.jpg',
+    img_out=img_out,
+    img_out_skel=img_out_skel,
+    precision=ACCU,
+    recall=RECALL,
+    f1_score=best_score,
+    best_params=best_parameter
+)

@@ -29,14 +29,15 @@ img_GT = np.asarray(Image.open('./images_IOSTAR/GT_01.png').convert('L')).astype
 img_GT = img_GT > 0  # Convert to boolean array
 
 # Fonction de segmentation
-segmentation_func = watershed_segmentation_with_markers
+segmentation_func = adaptive_treshold_segmentation_with_opening
 
 # Updated parameter grid for tuning
 param_grid = {
-    'min_distance': [10, 15, 20, 25],  # Adjusted range based on vessel spacing
-    'seuil': [20, 40, 60, 80, 100],    # Adjusted range for Frangi output
-    'scale_min': [1, 2, 3],            # Minimum vessel width scales
-    'scale_max': [8, 10, 12]           # Maximum vessel width scales
+    'adaptive_method': ['mean', 'median'],
+    'block_size': [11, 13, 15, 17],  # doit être impair
+    'C': [1, 2, 5, 10],
+    'blur': [False, True],
+    'opening_radius': [1, 2, 3]      # taille de l'élément structurant pour ouverture morphologique
 }
 
 # Run hyperparameter tuning

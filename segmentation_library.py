@@ -1,10 +1,135 @@
-from skimage.morphology import dilation, erosion, disk, closing
+from skimage.morphology import dilation, erosion, disk, closing, opening
 from skimage.segmentation import watershed
 from skimage.filters import frangi, sobel
 from skimage.feature import peak_local_max
 from skimage.exposure import rescale_intensity
 from scipy import ndimage as ndi
 import numpy as np
+import cv2
+
+def adaptive_treshold_segmentation(img, img_mask=None, adaptive_method='mean', block_size=11, C=2, blur=False):
+    """
+    Applique un seuillage adaptatif local sur une image (canal vert ou niveaux de gris).
+    
+    Parameters:
+    - img: Image d'entrée (couleur ou niveaux de gris).
+    - img_mask: Masque binaire optionnel (même taille que l'image).
+    - adaptive_method: 'mean' pour moyenne locale, 'median' pour médiane locale.
+    - block_size: Taille du voisinage pour le calcul local (doit être impair).
+    - C: Constante soustraite du seuil local.
+    - blur: Si True, applique un floutage Gaussien avant le seuillage.
+    
+    Returns:
+    - Image binaire (uint8, 0 ou 255) après seuillage adaptatif.
+    """
+    # Vérifier les dimensions de l'image
+    if len(img.shape) == 3:
+        # Extraire le canal vert (index 1 dans BGR)
+        img_proc = img[:, :, 1]
+    else:
+        # Image déjà en niveaux de gris
+        img_proc = img
+
+    # Appliquer un floutage Gaussien si demandé
+    if blur:
+        img_proc = cv2.GaussianBlur(img_proc, (5, 5), 0)
+
+    # Vérifier que block_size est impair
+    if block_size % 2 == 0:
+        raise ValueError("block_size doit être impair.")
+
+    # Seuillage adaptatif
+    if adaptive_method.lower() == 'mean':
+        # Utiliser la moyenne locale (OpenCV)
+        thresh = cv2.adaptiveThreshold(
+            img_proc,
+            255,
+            cv2.ADAPTIVE_THRESH_MEAN_C,
+            cv2.THRESH_BINARY,
+            block_size,
+            C
+        )
+    elif adaptive_method.lower() == 'median':
+        # Calcul manuel pour la médiane locale
+        # Appliquer un filtre médian local pour estimer le seuil
+        local_median = cv2.medianBlur(img_proc, block_size)
+        thresh = (img_proc < local_median - C).astype(np.uint8) * 255
+    else:
+        raise ValueError("adaptive_method doit être 'mean' ou 'median'.")
+
+    # Appliquer le masque si fourni
+    if img_mask is not None:
+        if img_mask.shape != img_proc.shape:
+            raise ValueError("Le masque doit avoir la même forme que l'image.")
+        # Convertir le masque en binaire (0 ou 255)
+        img_mask = (img_mask > 0).astype(np.uint8) * 255
+        thresh = cv2.bitwise_and(thresh, img_mask)
+
+    return thresh
+
+
+def adaptive_treshold_segmentation_with_opening(
+    img,
+    img_mask=None,
+    adaptive_method='mean',
+    block_size=11,
+    C=2,
+    blur=False,
+    opening_radius=1
+):
+    """
+    Applique un seuillage adaptatif local suivi d'une ouverture morphologique.
+
+    Parameters:
+    - img: Image d'entrée (niveaux de gris ou couleur).
+    - img_mask: Masque binaire optionnel (même taille que l'image).
+    - adaptive_method: 'mean' ou 'median' pour le calcul local du seuil.
+    - block_size: Taille de la fenêtre locale (impair).
+    - C: Constante soustraite du seuil local.
+    - blur: Si True, applique un floutage Gaussien avant seuillage.
+    - opening_radius: Rayon de l'élément structurant pour l'ouverture.
+
+    Returns:
+    - Image binaire (uint8, 0 ou 255) après seuillage adaptatif et ouverture.
+    """
+    if len(img.shape) == 3:
+        img_proc = img[:, :, 1]  # canal vert
+    else:
+        img_proc = img
+
+    if blur:
+        img_proc = cv2.GaussianBlur(img_proc, (5, 5), 0)
+
+    if block_size % 2 == 0:
+        raise ValueError("block_size doit être impair.")
+
+    if adaptive_method.lower() == 'mean':
+        thresh = cv2.adaptiveThreshold(
+            img_proc,
+            255,
+            cv2.ADAPTIVE_THRESH_MEAN_C,
+            cv2.THRESH_BINARY,
+            block_size,
+            C
+        )
+    elif adaptive_method.lower() == 'median':
+        local_median = cv2.medianBlur(img_proc, block_size)
+        thresh = (img_proc < local_median - C).astype(np.uint8) * 255
+    else:
+        raise ValueError("adaptive_method doit être 'mean' ou 'median'.")
+
+    if img_mask is not None:
+        if img_mask.shape != img_proc.shape:
+            raise ValueError("Le masque doit avoir la même forme que l'image.")
+        img_mask = (img_mask > 0).astype(np.uint8) * 255
+        thresh = cv2.bitwise_and(thresh, img_mask)
+
+    # Appliquer une ouverture morphologique pour supprimer les artefacts fins
+    binary = (thresh > 0).astype(np.uint8)
+    selem = disk(opening_radius)
+    opened = opening(binary, selem)
+    
+    return (opened * 255).astype(np.uint8)
 
 
 def morphological_gradient_segmentation(img, img_mask, seuil, selem_radius=1):

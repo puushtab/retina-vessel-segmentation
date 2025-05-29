@@ -11,6 +11,7 @@ from matplotlib import pyplot as plt
 
 from segmentation_library import *
 from validation_tuning_library import evaluate, tune_hyperparameters, save_results
+from learning_library import train_model, infer_segmentation
 
 # Load the original grayscale image
 img = np.asarray(Image.open('./images_IOSTAR/star01_OSC.jpg').convert('L')).astype(np.uint8)
@@ -31,7 +32,7 @@ img_GT = img_GT > 0  # Convert to boolean array
 # Fonction de segmentation
 segmentation_func = adaptive_treshold_segmentation_with_opening
 
-# Updated parameter grid for tuning
+# # Updated parameter grid for tuning
 param_grid = {
     'adaptive_method': ['mean', 'median'],
     'block_size': [11, 13, 15, 17],  # doit être impair
@@ -40,7 +41,7 @@ param_grid = {
     'opening_radius': [1, 2, 3]      # taille de l'élément structurant pour ouverture morphologique
 }
 
-# Run hyperparameter tuning
+# # Run hyperparameter tuning
 best_parameter, best_score, history = tune_hyperparameters(
     segmentation_func=segmentation_func,
     img=img,
@@ -52,8 +53,9 @@ best_parameter, best_score, history = tune_hyperparameters(
 
 print("Best parameters:", best_parameter, "with F1 score:", best_score)
 
-# Segment the image with best parameters
+# # Segment the image with best parameters
 img_out = segmentation_func(img, img_mask, **best_parameter)
+
 
 # Evaluate segmentation
 ACCU, RECALL, img_out_skel, GT_skel = evaluate(img_out, img_GT)

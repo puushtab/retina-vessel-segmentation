@@ -9,20 +9,8 @@ import math
 from skimage import data, filters
 from matplotlib import pyplot as plt
 
-def my_segmentation(img, img_mask, seuil):
-    img_out = (img_mask & (img < seuil))
-    return img_out
-
-def evaluate(img_out, img_GT):
-    GT_skel = skeletonize(img_GT)  # Reduce evaluation to skeleton pixels
-    img_out_skel = skeletonize(img_out)  # Skeletonize segmented image
-    TP = np.sum(img_out_skel & img_GT)  # True positives
-    FP = np.sum(img_out_skel & ~img_GT)  # False positives
-    FN = np.sum(GT_skel & ~img_out)  # False negatives
-
-    ACCU = TP / (TP + FP) if (TP + FP) > 0 else 0  # Precision
-    RECALL = TP / (TP + FN) if (TP + FN) > 0 else 0  # Recall
-    return ACCU, RECALL, img_out_skel, GT_skel
+from segmentation_library import *
+from validation_tuning_library import evaluate, tune_hyperparameters, save_results
 
 # Load the original grayscale image
 img = np.asarray(Image.open('./images_IOSTAR/star01_OSC.jpg').convert('L')).astype(np.uint8)
@@ -35,13 +23,37 @@ img_mask = np.ones(img.shape, dtype=bool)
 invalid_pixels = ((row - nrows/2)**2 + (col - ncols/2)**2 > (nrows/2)**2)
 img_mask[invalid_pixels] = False
 
-# Segment the image
-img_out = my_segmentation(img, img_mask, 80)
-
 # Load the ground truth image as binary
 img_GT = np.asarray(Image.open('./images_IOSTAR/GT_01.png').convert('L')).astype(bool)
 # Ensure img_GT is binary (0s and 1s)
 img_GT = img_GT > 0  # Convert to boolean array
+
+# Fonction de segmentation
+segmentation_func = adaptive_treshold_segmentation_with_opening
+
+# Updated parameter grid for tuning
+param_grid = {
+    'adaptive_method': ['mean', 'median'],
+    'block_size': [11, 13, 15, 17],  # doit être impair
+    'C': [1, 2, 5, 10],
+    'blur': [False, True],
+    'opening_radius': [1, 2, 3]      # taille de l'élément structurant pour ouverture morphologique
+}
+
+# Run hyperparameter tuning
+best_parameter, best_score, history = tune_hyperparameters(
+    segmentation_func=segmentation_func,
+    img=img,
+    img_mask=img_mask,
+    img_GT=img_GT,
+    param_grid=param_grid,
+    verbose=False
+)
+
+print("Best parameters:", best_parameter, "with F1 score:", best_score)
+
+# Segment the image with best parameters
+img_out = segmentation_func(img, img_mask, **best_parameter)
 
 # Evaluate segmentation
 ACCU, RECALL, img_out_skel, GT_skel = evaluate(img_out, img_GT)
@@ -60,9 +72,21 @@ plt.imshow(img_out_skel, cmap='gray')
 plt.title('Segmentation squelette')
 plt.subplot(235)
 plt.imshow(img_GT, cmap='gray')
-plt.title('Verite Terrain')
+plt.title('Vérité Terrain')
 plt.subplot(236)
 plt.imshow(GT_skel, cmap='gray')
-plt.title('Verite Terrain Squelette')
+plt.title('Vérité Terrain Squelette')
 plt.tight_layout()
 plt.show()
+
+save_results(
+    segmentation_func=segmentation_func,   # ta fonction de segmentation (pas une string)
+    results_dir='media/results',
+    img_path='./images_IOSTAR/star01_OSC.jpg',
+    img_out=img_out,
+    img_out_skel=img_out_skel,
+    precision=ACCU,
+    recall=RECALL,
+    f1_score=best_score,
+    best_params=best_parameter
+)

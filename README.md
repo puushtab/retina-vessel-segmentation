@@ -111,3 +111,11 @@ Objectif:
 - Faire squelette
 OU:
 - Segmenter l'image directement
+
+
+
+
+
+## Métriques additionelles
+
+-   Intersection over Union : IoU = (A inter B) / (A union B)

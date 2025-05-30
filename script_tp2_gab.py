@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 
 from skimage.filters import threshold_local
 from scipy.ndimage import gaussian_filter
-def seuillage_local(img, img_mask, block_size=35, offset=10):
+def seuillage_local(img, img_mask, block_size=35, offset=10, inverse=False):
     """
     Segmentation par seuillage adaptatif local après floutage.
 
@@ -31,7 +31,10 @@ def seuillage_local(img, img_mask, block_size=35, offset=10):
     adaptive_thresh = threshold_local(img_blur, block_size, offset=offset)
 
     # Binarisation + masque
-    img_out = (img_blur < adaptive_thresh) & img_mask
+    if inverse:
+        img_out = (img_blur > adaptive_thresh) & img_mask
+    else:
+        img_out = (img_blur < adaptive_thresh) & img_mask
     return img_out
 
 def seuillage_global(img, img_mask, seuil, inverse=False):
@@ -73,10 +76,9 @@ img_mask[invalid_pixels] = False
 # img_out = seuillage_global(img, img_mask, 60)
 
 # Tophat
-# elt = disk(10)
-# elt = star(10)
-# elt = square(15)
-# img_out = tophat(img, elt, black=True)
+elt = square(30)
+img_out = tophat(img, elt, black=True)
+img_out = seuillage_global(img_out, img_mask, 20, True)
 
 # On constate que il est dur d'isoler les vaiseaux issus du bruit/non intéressants de ceux importants mais on a déjà 60% d'accuracy.
 # Carré: isoler les lignes, sinon les tâches ressortent et faussent la reconstruction
@@ -96,16 +98,16 @@ img_neg = img_neg * ((img_neg > 0) & img_mask)
 # Ouverture par reconstruction
 
 # Tophat + reconstruction
-elt = square(8)
-img_out = tophat(img, elt, black=True)
-img_out = seuillage_global(img_out, img_mask, 15, True)
-elt = square(3)
-reconstruction_mask = opening(img_out, elt)
-img_out = reconstruction(reconstruction_mask, img_out)
-img_out = img_out*True + False*(1-img_out)
-Les plus récentes
+# elt = square(8)
+# img_out = tophat(img, elt, black=True)
+# img_out = seuillage_global(img_out, img_mask, 20, True)
 
-print(img_out)
+# elt = square(3)
+# reconstruction_mask = opening(img_out, elt)
+
+# img_out = reconstruction(reconstruction_mask, img_out).astype(int)
+
+
 # Load the ground truth image as binary
 img_GT = np.asarray(Image.open('./images_IOSTAR/GT_01.png').convert('L')).astype(bool)
 # Ensure img_GT is binary (0s and 1s)

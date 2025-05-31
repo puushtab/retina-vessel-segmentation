@@ -1,121 +1,117 @@
+# Retina Vessel Segmentation
 
-- Note != excellent résultat
-- Explication de la démarche
-- Montrer qu'on comprend ce qu'on fait
+This project implements various methods for segmenting blood vessels in retinal images using traditional image processing techniques and deep learning approaches.
 
-# Idées ChatGPT
-### 🟢 **Idées simples (triviales mais utiles pour un premier jet ou une baseline)**
+## Project Structure
 
-1. **Seuillage adaptatif simple** :
-
-   * Appliquer un seuillage sur la luminance ou un canal contrasté (ex: green channel), éventuellement après un floutage.
-   * Variante : seuillage local (adaptive thresholding) basé sur la moyenne ou la médiane locale.
-
-2. **Filtrage top-hat conjugué** :
-
-   * Supprimer l’arrière-plan pour mieux faire ressortir les vaisseaux : `image - ouverture(image, structurant circulaire)`.
-   * Améliore le contraste local des structures fines.
-
-3. **Gradient morphologique** :
-
-   * Calculer le gradient morphologique pour mettre en évidence les contours des vaisseaux.
-
-4. **Seuillage + ouverture morphologique** :
-
-   * Pour éliminer le bruit (points isolés) après seuillage.
-
----
-
-### 🟡 **Idées intermédiaires (intégrant des outils vus en cours)**
-
-5. **Multiscale filtering** :
-
-   * Appliquer des ouvertures/fermetures à différentes tailles d’éléments structurants, puis combiner les résultats.
-   * Tu peux aussi calculer une moyenne pondérée des segmentations.
-
-6. **Analyse granulométrique** : 
-
-   * Étudier l’effet des ouvertures pour extraire les structures à certaines tailles → identifier automatiquement l’échelle caractéristique des vaisseaux.
-
-7. **Ouverture par reconstruction (Reconstruction par géodésie)** :
-
-   * Appliquer une ouverture morphologique suivie d’une reconstruction géodésique pour ne garder que les composantes connexes significatives.
-
-8. **Utilisation des transformées en distance (d4 ou quasi-euclidienne)** :
-
-   * Pour calculer des érosions rapides ou extraire les axes médiaux (centre des vaisseaux).
-
-9. **Seuillage de la transformée en distance + squelette morphologique** :
-
-   * Utiliser les maxima locaux de la distance pour localiser les vaisseaux fins.
-
-10. **Squelettisation par amincissement** :
-
-* Pour convertir une première détection en structure filaire, conservant la connectivité du réseau vasculaire.
-
-11. **Post-traitement par ouverture par reconstruction** :
-
-* Pour éliminer les artefacts sans casser les vaisseaux fins.
-
----
-
-### 🔴 **Idées avancées (plus poussées, bonnes pour bonus + analyse critique)**
-
-12. **Squelette multi-échelle par fonction de choc géodésique** :
-
-* Calculer la transformée en distance + zones d’influence + fonction de choc, puis seuiller.
-* Permet d’obtenir un réseau très fin et connecté.
-* Adapté à la diversité d’échelles des vaisseaux.
-
-13. **Segmentation guidée par Ligne de Partage des Eaux (LPE)** :
-
-* Appliquer une LPE sur le gradient morphologique ou l’image préfiltrée.
-* Avec filtrage des minima peu significatifs (bruit spatial ou faible dynamique).
-
-14. **Utilisation de filtres alternés séquentiels (FAS)** :
-
-* Combinaison d’ouvertures/fermetures pour améliorer la robustesse aux artefacts.
-
-15. **Érosion ultime + squelette par points d’ancrage** :
-
-* Pour détecter les points centraux des vaisseaux et reconstruire un squelette fin mais stable.
-
----
-
-### 🔁 **Stratégies hybrides (pipeline combiné)**
-
-16. **Pipeline typique efficace** :
-
-```text
-Prétraitement → Gradient morphologique → LPE ou seuillage → Reconstruction géodésique → Squelette ou filtrage
+```
+retina-vessel-segmentation/
+├── images_IOSTAR/           # Dataset directory
+├── media/                   # Output directory for results
+├── segmentation_library.py  # Implementation of segmentation methods
+├── validation_tuning_library.py  # Validation and hyperparameter tuning
+├── learning_library.py      # Deep learning implementation (U-Net)
+├── script_tp2.py           # Main script for single method evaluation
+├── pipeline.py             # Implementation of the morphological pipeline
+├── pipeline_roc.py         # ROC curve computation for the pipeline
+├── ROC_script.py           # ROC curves for all methods
+├── learning_script.py      # Deep learning training and inference
+└── requirements.txt        # Project dependencies
 ```
 
-17. **Masquage itératif** :
+## Features
 
-* Segmentation initiale grossière → masquage → affinement local via une méthode différente.
+### Traditional Image Processing Methods
+- Adaptive Thresholding
+- Morphological Operations (Opening, Closing, Reconstruction)
+- Top-hat Transform
+- Gradient-based Segmentation
+- Watershed Segmentation
+- Multi-scale Skeletonization
 
-18. **Utilisation d’une zone d’intérêt (ROI)** :
+### Deep Learning
+- U-Net implementation for vessel segmentation
+- Pre-trained model available (`unet_retina.pth`)
 
-* Si l’image est bruitée sur les bords, réduire l’analyse à une ROI basée sur la vérité terrain.
+### Evaluation Metrics
+- Precision (Accuracy)
+- Recall
+- F1-score
+- ROC curves and AUC scores
 
----
+## Installation
 
-Si tu veux, je peux t’aider à coder une des approches ou t’écrire une partie de rapport critique pour expliquer les forces/faiblesses de tes choix. Tu veux commencer par quoi ?
+1. Clone the repository:
+```bash
+git clone [repository-url]
+cd retina-vessel-segmentation
+```
 
-# Idées prof
-## Normalisation de la métrique
-Comparaison du nombres de pixels entre la personne segmentée en premier plan et la personne segmentée en dernier plan donne importance différente si on compare que la différence des pixels entre la segmentation de référence et la segmentation calculée ! Par conséquent, il faut comparer les squelettes des deux images !
-Squelette et transformée en distance définis que pour des images binaires.
-Objectif: 
-- Transformer image en binaire
-- Faire squelette
-OU:
-- Segmenter l'image directement
+2. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
 
+## Usage
 
+### Single Method Evaluation
+```bash
+python script_tp2.py
+```
+This script allows you to evaluate a single segmentation method with hyperparameter tuning.
 
+### Pipeline Evaluation
+```bash
+python pipeline.py
+```
+Runs the complete morphological pipeline for vessel segmentation.
 
+### ROC Curves
+```bash
+python ROC_script.py
+```
+Generates ROC curves for all implemented methods.
 
-## Métriques additionelles
+### Deep Learning
+```bash
+python learning_script.py
+```
+Trains or uses the U-Net model for vessel segmentation.
 
--   Intersection over Union : IoU = (A inter B) / (A union B)
+## Pipeline Method
+
+The main pipeline consists of:
+1. Adaptive thresholding with median method
+2. First reconstruction with morphological operations
+3. Second reconstruction with different parameters
+
+Parameters:
+- Adaptive threshold: block_size=17, C=3
+- First reconstruction: closing(disk(1)), opening(disk(3))
+- Second reconstruction: closing(disk(2)), opening(disk(2))
+
+## Results
+
+Results are saved in:
+- `media/results/` - Segmentation outputs
+- `pipeline_roc_curve.png` - ROC curve for the pipeline
+- `roc_curves.png` - ROC curves for all methods
+- `results_summary.csv` - Performance metrics
+
+## Dependencies
+
+- numpy
+- scikit-image
+- OpenCV
+- scikit-learn
+- PyTorch
+- matplotlib
+- PIL
+
+## License
+
+[Your License Here]
+
+## Authors
+
+[Your Name/Team]

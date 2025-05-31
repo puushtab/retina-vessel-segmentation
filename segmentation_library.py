@@ -1,4 +1,7 @@
-from skimage.morphology import dilation, erosion, disk, closing, opening
+from skimage.morphology import erosion, dilation, binary_erosion, opening, closing, white_tophat, reconstruction, black_tophat, skeletonize, convex_hull_image, thin
+from skimage.morphology import square, diamond, octagon, rectangle, star, disk
+from skimage.filters.rank import entropy, enhance_contrast_percentile
+
 from skimage.segmentation import watershed
 from skimage.filters import frangi, sobel
 from skimage.feature import peak_local_max
@@ -143,9 +146,9 @@ def morphological_gradient_segmentation(img, img_mask, seuil, selem_radius=1):
     img_mask : ndarray
         Masque binaire des régions valides (True/False).
     seuil : int or float
-        Seuil d’intensité appliqué au gradient.
+        Seuil d'intensité appliqué au gradient.
     selem_radius : int
-        Rayon de l’élément structurant utilisé pour la morphologie.
+        Rayon de l'élément structurant utilisé pour la morphologie.
 
     Returns:
     --------
@@ -201,13 +204,13 @@ def gradient_based_segmentation(img, img_mask, seuil_grad, seuil_closing, selem_
     img_mask : ndarray
         Masque binaire des régions valides (True/False).
     seuil_grad : int or float
-        Seuil d’intensité appliqué au gradient externe.
+        Seuil d'intensité appliqué au gradient externe.
     seuil_closing : int or float
-        Seuil d’intensité appliqué après la fermeture morphologique.
+        Seuil d'intensité appliqué après la fermeture morphologique.
     selem_radius_grad : int
-        Rayon de l’élément structurant pour le calcul du gradient.
+        Rayon de l'élément structurant pour le calcul du gradient.
     selem_radius_closing : int
-        Rayon de l’élément structurant pour la fermeture morphologique.
+        Rayon de l'élément structurant pour la fermeture morphologique.
 
     Returns:
     --------
@@ -290,3 +293,216 @@ def watershed_segmentation_with_markers(img, img_mask, seuil, min_distance=15, s
     img_out = labels > 1
 
     return img_out
+
+# New function for multi-scale skeletonization
+def multi_scale_skeletonization(img, img_mask=None, scales=[1, 2, 3]):
+    """
+    Applique une squelettisation multi-échelle sur une image binaire.
+    
+    Parameters:
+    - img: Image binaire (uint8, 0 ou 255).
+    - img_mask: Masque binaire optionnel (même taille que l'image).
+    - scales: Liste des rayons d'éléments structurants à utiliser.
+    
+    Returns:
+    - Image binaire (uint8, 0 ou 255) après squelettisation multi-échelle.
+    """
+    if img_mask is not None:
+        if img_mask.shape != img.shape:
+            raise ValueError("Le masque doit avoir la même forme que l'image.")
+        img = cv2.bitwise_and(img, img_mask)
+    
+    # Convertir l'image en binaire (0 ou 1)
+    binary = (img > 0).astype(np.uint8)
+    
+    # Initialiser le résultat
+    result = np.zeros_like(binary)
+    
+    # Appliquer la squelettisation à chaque échelle
+    for scale in scales:
+        selem = disk(scale)
+        # Utiliser l'opération d'érosion pour simuler la squelettisation
+        skeleton = erosion(binary, selem)
+        result = np.logical_or(result, skeleton)
+    
+    # Convertir le résultat en uint8 (0 ou 255)
+    return (result * 255).astype(np.uint8)
+
+from skimage.morphology import skeletonize
+from scipy.ndimage import distance_transform_edt
+
+
+def skeleton_multi_scale(binary_img, s=1):
+    """
+    Calcule des squelettes multi-échelles à partir d'une image binaire.
+    
+    Args:
+        binary_img: Image binaire (booléenne) dont on veut extraire les squelettes.
+        scales: Liste de valeurs d'échelle (distance au bord minimale).
+
+    Returns:
+        Dictionnaire {échelle: squelette}
+    """
+    distance_map = distance_transform_edt(binary_img)
+    mask = distance_map > s
+    skel = skeletonize(mask)
+    return skel
+
+def skeleton_segmentation(img, img_mask=None, s=1):
+    """
+    Applique une squelettisation sur une image binaire.
+    """
+    img_out = adaptive_treshold_segmentation(img, img_mask,  adaptive_method='median', block_size=17, C=5, blur=True)
+
+    return skeleton_multi_scale(img_out, s)
+
+def skeleton_multi_scale2(binary_img, scales=[1, 3, 5, 10]):
+    """
+    Calcule des squelettes multi-échelles à partir d'une image binaire.
+    
+    Args:
+        binary_img: Image binaire (booléenne) dont on veut extraire les squelettes.
+        scales: Liste de valeurs d'échelle (distance au bord minimale).
+
+    Returns:
+        Dictionnaire {échelle: squelette}
+    """
+    distance_map = distance_transform_edt(binary_img)
+    skeletons = {}
+    for s in scales:
+        mask = distance_map > s
+        skel = skeletonize(mask)
+        skeletons[s] = skel
+    return skeletons
+
+def tophat(img, radius, black=True):
+    """
+    Applique une opération de tophat (black ou white) sur une image.
+    
+    Parameters:
+    -----------
+    img : ndarray
+        Image en niveaux de gris (uint8).
+    radius : int
+        Rayon de l'élément structurant.
+    black : bool
+        Si True, applique un black tophat (fermeture - image).
+        Si False, applique un white tophat (image - ouverture).
+    
+    Returns:
+    --------
+    ndarray
+        Image résultant de l'opération de tophat.
+    """
+    # Créer l'élément structurant
+    selem = disk(radius)
+    
+    if black:
+        # Black tophat = fermeture - image originale
+        closed = closing(img, selem)
+        return closed - img
+    else:
+        # White tophat = image originale - ouverture
+        opened = opening(img, selem)
+        return img - opened
+
+def tophat_segmentation(img, img_mask=None, radius=3, black=True, threshold=30):
+    """
+    Applique une segmentation basée sur l'opération de tophat pour détecter les vaisseaux.
+    
+    Parameters:
+    -----------
+    img : ndarray
+        Image en niveaux de gris (uint8).
+    img_mask : ndarray
+        Masque binaire des régions valides (True/False).
+    radius : int
+        Rayon de l'élément structurant pour le tophat.
+    black : bool
+        Si True, utilise black tophat (pour vaisseaux sombres).
+        Si False, utilise white tophat (pour vaisseaux clairs).
+    threshold : int
+        Seuil pour binariser le résultat du tophat.
+    
+    Returns:
+    --------
+    ndarray
+        Image binaire résultant de la segmentation.
+    """
+    # Appliquer l'opération de tophat
+    tophat_result = tophat(img, radius, black)
+    
+    # Binariser le résultat
+    binary = tophat_result > threshold
+    
+    # Appliquer le masque si fourni
+    if img_mask is not None:
+        binary = binary & img_mask
+    
+    return binary.astype(np.uint8) * 255
+
+
+def reconstruction_segmentation(img, img_mask=None, radius=3, black=True, threshold=30):
+    """
+    Applique une segmentation basée sur l'opération de reconstruction pour détecter les vaisseaux.
+    
+    Parameters:
+    -----------
+    img : ndarray
+        Image en niveaux de gris (uint8).
+    img_mask : ndarray
+        Masque binaire des régions valides (True/False).
+    radius : int
+        Rayon de l'élément structurant pour la reconstruction.
+    black : bool
+        Si True, utilise la reconstruction par érosion (pour vaisseaux sombres).
+        Si False, utilise la reconstruction par dilatation (pour vaisseaux clairs).
+    threshold : int
+        Seuil pour binariser le résultat de la reconstruction.
+    
+    Returns:
+    --------
+    ndarray
+        Image binaire résultant de la segmentation.
+    """
+    # Créer l'élément structurant
+    adapt_thresh = adaptive_treshold_segmentation(img, img_mask,  adaptive_method='median', block_size=17, C=5, blur=True)
+    
+    elt = disk(radius)
+    reconstruction_mask = opening(adapt_thresh, elt)
+    img_out = reconstruction(reconstruction_mask, adapt_thresh).astype(int)
+
+
+    return img_out
+
+def alternating_filter(img, radius=1, num_repetitions=2):
+    """
+    Applique un filtre alterné (opening -> closing -> opening -> closing -> ...) pour lisser le bruit.
+    
+    Parameters:
+    -----------
+    img : ndarray
+        Image binaire (uint8, 0 ou 255).
+    radius : int
+        Rayon de l'élément structurant.
+    num_repetitions : int
+        Nombre de répétitions de la séquence (opening -> closing).
+    
+    Returns:
+    --------
+    ndarray
+        Image binaire après application du filtre alterné.
+    """
+    result = img.copy()
+    
+    for _ in range(num_repetitions):
+        selem = disk(radius)
+        # Opening
+        result = opening(result, selem)
+        # Closing
+        result = closing(result, selem) 
+        radius += 1
+    
+    return result
+    
+    

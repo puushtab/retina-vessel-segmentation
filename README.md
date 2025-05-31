@@ -113,5 +113,5 @@ Results are saved in:
 [Your License Here]
 
 ## Authors
-
-[Your Name/Team]
+Amine Maazizi
+Gabriel Dupuis
